@@ -44,7 +44,7 @@ _ALLOWED.add(Transition(State.IDLE, State.CREATE_PROVIDER))
 _ALLOWED.add(Transition(State.STATUS_WAIT_CODE, State.IDLE))
 
 # Create wizard linear
-for a, b in zip(CREATE_FLOW, CREATE_FLOW[1:], strict=True):
+for a, b in zip(CREATE_FLOW, CREATE_FLOW[1:]):
     _ALLOWED.add(Transition(a, b))
 
 # Back transitions in wizard

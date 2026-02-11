@@ -15,16 +15,35 @@ from bot.utils import safe_get
 
 
 def _fmt_vm_line(lang: str, vm: dict[str, Any]) -> str:
-    name = str(safe_get(vm, "name", default="(no-name)"))
-    code = str(safe_get(vm, "vm_code", default=safe_get(vm, "code", default="")))
-    status = str(safe_get(vm, "status", default="UNKNOWN"))
-    loc = str(safe_get(vm, "location", default=""))
+    name = str(safe_get(vm, "name", default="(no-name)")).strip()
+
+    code = str(
+        safe_get(
+            vm,
+            "vmCode",
+            default=safe_get(vm, "vm_code", default=safe_get(vm, "code", default="")),
+        )
+    ).strip()
+
+    status = str(safe_get(vm, "status", default="UNKNOWN")).strip()
+
+    loc = str(
+        safe_get(
+            vm,
+            "locationName",
+            default=safe_get(vm, "location", default=""),
+        )
+    ).strip()
+
     loc_part = I18N.t(lang, "vm_loc", location=loc) if loc else ""
     return I18N.t(lang, "vm_line", name=name, code=code, status=status, loc=loc_part)
 
 
 async def list_vms_cmd(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    deps: HandlerDeps,
+    doprax: DopraxClient,
 ) -> None:
     user_id = user_id_from_update(update)
     if user_id is None:
@@ -41,13 +60,27 @@ async def list_vms_cmd(
     for vm in vms[:20]:
         lines.append(_fmt_vm_line(lang, vm))
 
-    await reply_menu(update, context, deps, lang, "\n".join(lines) + f"\n\n_{time.strftime('%Y-%m-%d %H:%M:%S')}_")
+    await reply_menu(
+        update,
+        context,
+        deps,
+        lang,
+        "\n".join(lines) + f"\n\n_{time.strftime('%Y-%m-%d %H:%M:%S')}_",
+    )
 
     # Additionally, for convenience, send inline buttons per VM (first few)
     if update.effective_chat is None:
         return
     for vm in vms[:5]:
-        code = str(safe_get(vm, "vm_code", default=safe_get(vm, "code", default="")))
+        code = str(
+            safe_get(
+                vm,
+                "vmCode",
+                default=safe_get(
+                    vm, "vm_code", default=safe_get(vm, "code", default="")
+                ),
+            )
+        ).strip()
         if not code:
             continue
         await context.bot.send_message(

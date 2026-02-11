@@ -76,12 +76,12 @@ async def _set_commands(app: Application) -> None:
     await app.bot.set_my_commands(commands)
 
 
-async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     deps: HandlerDeps = context.application.bot_data["deps"]
     storage: Storage = deps.storage
     uid = user_id_from_update(update)
     if uid is None:
-        return
+        return True
 
     # Ensure user exists
     await storage.ensure_user(uid)
@@ -98,18 +98,23 @@ async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 parse_mode=ParseMode.MARKDOWN,
             )
 
-    # Rate limiting
-    allowed = await enforce_ratelimit(storage, uid, deps.ratelimit_cooldown_seconds)
-    if not allowed and update.effective_chat:
-        lang = await get_lang(storage, uid)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=I18N.t(lang, "rate_limited"),
-            reply_markup=main_reply_keyboard(lang),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        # Stop further handling
-        raise RuntimeError("ratelimited")
+    # Rate limiting (skip for /start and language selection callbacks)
+    is_start_cmd = bool(update.message and update.message.text and update.message.text.strip().startswith("/start"))
+    is_lang_cb = bool(update.callback_query and update.callback_query.data and update.callback_query.data.startswith("LANG:"))
+
+    if not (is_start_cmd or is_lang_cb):
+        allowed = await enforce_ratelimit(storage, uid, deps.ratelimit_cooldown_seconds)
+        if not allowed and update.effective_chat:
+            lang = await get_lang(storage, uid)
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=I18N.t(lang, "rate_limited"),
+                reply_markup=main_reply_keyboard(lang),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return False
+
+    return True
 
 
 async def _unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -160,7 +165,8 @@ def _wrap(
     **kwargs: Any,
 ) -> Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]:
     async def _inner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await _preprocess(update, context)
+        if not await _preprocess(update, context):
+            return
         await handler(update, context, *args, **kwargs)
 
     return _inner
@@ -231,7 +237,6 @@ def build_app(cfg: Config) -> Application:
     app.post_init = _post_init
     app.post_shutdown = _shutdown
     app.post_stop = _shutdown
-    app.post_init = _post_init
     app.bot_data["open_resources"] = _open_resources
 
     return app
@@ -277,10 +282,23 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(
         CallbackQueryHandler(_wrap(status_callback, deps, doprax), pattern=r"^VMSTAT:")
     )
+    # Create wizard (text input)
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND, _wrap(create_by_text, deps, doprax)
+        )
+    )
+
+    # Status lookup (text input)
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND, _wrap(status_by_text, deps, doprax)
         )
+    )
+
+    # Reply keyboard text shortcuts (fallback)
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, _wrap(menu_by_text, deps))
     )
 
     # Locations / OS
@@ -295,11 +313,7 @@ def _register_handlers(app: Application) -> None:
             _wrap(create_callback, deps, doprax), pattern=r"^(CREATE:|LOCPICK:|OSPICK:)"
         )
     )
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND, _wrap(create_by_text, deps, doprax)
-        )
-    )
+
 
     # Settings
     app.add_handler(CommandHandler("settings", _wrap(settings_cmd, deps)))
@@ -310,10 +324,7 @@ def _register_handlers(app: Application) -> None:
     # Health
     app.add_handler(CommandHandler("health", _wrap(health_cmd, deps, doprax, dry_run)))
 
-    # Reply keyboard text shortcuts (best-effort)
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, _wrap(menu_by_text, deps))
-    )
+
 
     # Fallback unknown
     app.add_handler(MessageHandler(filters.ALL, _unknown))

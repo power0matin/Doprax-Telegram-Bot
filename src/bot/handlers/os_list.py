@@ -21,7 +21,13 @@ async def os_cmd(
     lang = await get_lang(deps.storage, user_id)
 
     os_list = await doprax.get_os_list()
-    slugs = [str(safe_get(x, "slug", default="")) for x in os_list]
-    slugs = [s for s in slugs if s]
+
+    slugs_raw = [
+        str(safe_get(x, "slug", default="")).strip()
+        for x in os_list
+        if isinstance(x, dict)
+    ]
+    slugs = sorted({s for s in slugs_raw if s})  # dedupe + sort
+
     lines = [f"*{I18N.t(lang, 'os_title')}*"] + [f"- `{s}`" for s in slugs[:50]]
     await reply_menu(update, context, deps, lang, compact_lines(lines, limit=60))

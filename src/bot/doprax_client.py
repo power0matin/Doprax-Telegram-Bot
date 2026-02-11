@@ -39,6 +39,7 @@ class DopraxClient:
         if self._client is None:
             self._client = httpx.AsyncClient(
                 base_url=self._cfg.base_url,
+                follow_redirects=True,
                 headers={
                     "X-API-Key": self._cfg.api_key,
                     "Content-Type": "application/json",
@@ -109,6 +110,20 @@ class DopraxClient:
             raise DopraxValidationError(message_key="something_wrong", details=detail)
         raise DopraxServerError(message_key="something_wrong", details=detail)
 
+    def _unwrap(self, data: Any) -> Any:
+        """
+        Doprax API غالباً پاسخ‌ها را به شکل:
+        {"success": true, "data": ... , "msg": ...}
+        برمی‌گرداند. این تابع data را unwrap می‌کند.
+        """
+        if (
+            isinstance(data, dict)
+            and "data" in data
+            and isinstance(data.get("success"), bool)
+        ):
+            return data.get("data")
+        return data
+
     def _mock(self, method: str, url: str, json_data: Any | None) -> Any:
         # Deterministic, stable responses for tests/manual dry-run
         if url.startswith("/api/v1/os/") and method == "GET":
@@ -167,24 +182,103 @@ class DopraxClient:
         return {}
 
     async def list_vms(self) -> list[dict[str, Any]]:
-        data = await self._request("GET", "/api/v1/vms/")
+        raw = await self._request("GET", "/api/v1/vms/")
+        data = self._unwrap(raw)
         return data if isinstance(data, list) else []
 
     async def create_vm(self, payload: dict[str, Any]) -> dict[str, Any]:
-        data = await self._request("POST", "/api/v1/vms/", json_data=payload)
+        raw = await self._request("POST", "/api/v1/vms/", json_data=payload)
+
+        # طبق داک: {"success": true, "vm": {...}, "msg": {...}}
+        if isinstance(raw, dict) and "vm" in raw and isinstance(raw["vm"], dict):
+            return raw["vm"]
+
+        data = self._unwrap(raw)
         return data if isinstance(data, dict) else {}
 
     async def get_vm_status(self, vm_code: str) -> dict[str, Any]:
-        data = await self._request("GET", f"/api/v1/vms/{vm_code}/status/")
+        raw = await self._request("GET", f"/api/v1/vms/{vm_code}/status/")
+        data = self._unwrap(raw)
         return data if isinstance(data, dict) else {}
 
     async def get_locations(self) -> list[dict[str, Any]]:
-        data = await self._request("GET", "/api/v1/vlocations/")
+        raw = await self._request("GET", "/api/v1/vlocations/")
+        data = self._unwrap(raw)
+
+        # انتظار: data = {"locationsList": [...], "locationMachineTypeMapping": {...}}
+        if isinstance(data, dict):
+            locations_list = safe_get(data, "locationsList", default=[])
+            mapping = safe_get(data, "locationMachineTypeMapping", default={})
+
+            out: list[dict[str, Any]] = []
+            if isinstance(locations_list, list) and isinstance(mapping, dict):
+                for loc in locations_list:
+                    if not isinstance(loc, dict):
+                        continue
+                    loc_code = safe_get(loc, "locationCode")
+                    loc_name = safe_get(
+                        loc, "name", default=""
+                    )  # در schema شما name هست
+                    if not loc_code:
+                        continue
+
+                    machine_block = safe_get(mapping, loc_code, default={})
+                    machine_list = safe_get(
+                        machine_block, "machineTypeList", default=[]
+                    )
+
+                    machines: list[dict[str, Any]] = []
+                    if isinstance(machine_list, list):
+                        for m in machine_list:
+                            if not isinstance(m, dict):
+                                continue
+                            machines.append(
+                                {
+                                    "name": safe_get(m, "name", default=""),
+                                    "machineCode": safe_get(
+                                        m, "machineCode", default=""
+                                    ),
+                                }
+                            )
+
+                    out.append(
+                        {
+                            "locationCode": loc_code,
+                            "locationName": loc_name,
+                            "machines": machines,
+                        }
+                    )
+            return out
+
         return data if isinstance(data, list) else []
 
     async def get_os_list(self) -> list[dict[str, Any]]:
-        data = await self._request("GET", "/api/v1/os/")
-        return data if isinstance(data, list) else []
+        raw = await self._request("GET", "/api/v1/os/")
+        data = self._unwrap(raw)
+
+        out: list[dict[str, Any]] = []
+
+        if isinstance(data, dict):
+            for provider, items in data.items():
+                if isinstance(items, list):
+                    for it in items:
+                        if isinstance(it, dict):
+                            out.append({**it, "provider_name": provider})
+        elif isinstance(data, list):
+            out = [x for x in data if isinstance(x, dict)]
+
+        # dedupe by slug (keep first)
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for it in out:
+            slug = str(it.get("slug", "")).strip()
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            deduped.append(it)
+
+        deduped.sort(key=lambda x: str(x.get("slug", "")))
+        return deduped
 
     async def resolve_location_and_machine_codes(
         self, plan: str, preferred_location: str
