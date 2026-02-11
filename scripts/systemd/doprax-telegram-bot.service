@@ -1,0 +1,25 @@
+# path: scripts/systemd/doprax-telegram-bot.service
+[Unit]
+Description=Doprax Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/doprax-telegram-bot
+EnvironmentFile=/opt/doprax-telegram-bot/.env
+ExecStart=/opt/doprax-telegram-bot/.venv/bin/python -m bot.main
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Security hardening (adjust as needed)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/doprax-telegram-bot/data
+
+[Install]
+WantedBy=multi-user.target

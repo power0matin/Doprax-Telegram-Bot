@@ -1,0 +1,81 @@
+# path: pyproject.toml
+[build-system]
+requires = ["hatchling>=1.24.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "doprax-telegram-bot"
+version = "0.1.0"
+description = "Production-grade bilingual (FA/EN) Telegram bot to manage Doprax VMs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Matin Shahabadi", email = "matinshahabadi3@gmail.com" }]
+keywords = ["telegram", "bot", "doprax", "vm", "python-telegram-bot", "async"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Internet",
+]
+
+dependencies = [
+  "python-telegram-bot>=21.0,<22",
+  "httpx>=0.27.0,<0.29",
+  "aiosqlite>=0.20.0,<0.21",
+  "python-dotenv>=1.0.1,<2; platform_system != 'Windows'",
+  "typing-extensions>=4.10.0,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0,<9",
+  "pytest-asyncio>=0.23.0,<0.26",
+  "mypy>=1.10.0,<2",
+  "ruff>=0.6.0,<1",
+  "build>=1.2.1,<2",
+  "pre-commit>=3.7.0,<5",
+]
+
+[project.scripts]
+doprax-telegram-bot = "bot.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+fix = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+ignore = ["E501"]
+unfixable = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+pretty = true
+exclude = "(^|/)\\.venv/|(^|/)build/|(^|/)dist/"
+
+[[tool.mypy.overrides]]
+module = ["httpx.*", "aiosqlite.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
