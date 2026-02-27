@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from collections.abc import Iterable, Mapping
 import json
 import logging
 import os
@@ -7,7 +7,6 @@ import re
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
 
 SECRET_KEYS = ("TELEGRAM_BOT_TOKEN", "DOPRAX_API_KEY")
 
