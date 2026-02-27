@@ -48,7 +48,6 @@ packages = ["src/bot"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-fix = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
@@ -74,6 +73,10 @@ exclude = "(^|/)\\.venv/|(^|/)build/|(^|/)dist/"
 
 [[tool.mypy.overrides]]
 module = ["httpx.*", "aiosqlite.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["telegram.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
