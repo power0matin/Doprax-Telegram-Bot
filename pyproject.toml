@@ -54,6 +54,10 @@ select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
 ignore = ["E501"]
 unfixable = ["F401"]
 
+# ✅ i18n ترجمه‌ها عمداً فارسی/ایموجی دارند، RUF001/2/3 رو فقط برای همون فایل خاموش می‌کنیم
+[tool.ruff.lint.per-file-ignores]
+"src/bot/i18n.py" = ["RUF001", "RUF002", "RUF003"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
