@@ -28,7 +28,7 @@ dependencies = [
   "typing-extensions>=4.10.0,<5",
 ]
 
-https://github.com/power0matin/Doprax-Telegram-Bot/pull/3[project.optional-dependencies]
+[project.optional-dependencies]
 dev = [
   "pytest>=8.0.0,<9",
   "pytest-asyncio>=0.23.0,<1.4",
