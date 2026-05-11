@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -24,7 +23,7 @@ class HandlerDeps:
     ratelimit_cooldown_seconds: int = 2
 
 
-def user_id_from_update(update: Update) -> Optional[int]:
+def user_id_from_update(update: Update) -> int | None:
     u = update.effective_user
     return u.id if u else None
 
@@ -34,7 +33,9 @@ async def get_lang(storage: Storage, user_id: int) -> Lang:
     return prefs.lang  # type: ignore[return-value]
 
 
-async def reply_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, lang: Lang, text: str) -> None:
+async def reply_menu(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, lang: Lang, text: str
+) -> None:
     if update.effective_chat is None:
         return
     await context.bot.send_message(

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import signal
-from importlib.metadata import version as pkg_version
-from typing import Any, Callable, Coroutine, Optional
+from collections.abc import Callable, Coroutine
+from contextlib import suppress
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+from pathlib import Path
+from typing import Any, TypeAlias, cast
 
 from telegram import BotCommand, Update
 from telegram.constants import ParseMode
@@ -23,7 +26,6 @@ from bot.config import Config
 from bot.doprax_client import DopraxClient, DopraxConfig
 from bot.handlers.common import (
     HandlerDeps,
-    correlation_for_update,
     enforce_ratelimit,
     get_lang,
     json_log,
@@ -48,123 +50,150 @@ from bot.handlers.status import status_by_text, status_callback, status_cmd
 from bot.handlers.vm_mgmt import vm_mgmt_callback, vm_mgmt_cmd
 from bot.i18n import I18N
 from bot.keyboards import main_reply_keyboard
-from bot.states import State
+from bot.states import State, is_create_state
 from bot.storage import Storage
 from bot.utils import new_correlation_id, redact_secrets
 
 LOGGER = logging.getLogger("doprax_telegram_bot")
+TEXT_MESSAGE_FILTER = filters.TEXT & ~filters.COMMAND
+
+TelegramApplication: TypeAlias = Application[Any, Any, Any, Any, Any, Any]
+HandlerCallable: TypeAlias = Callable[..., Coroutine[Any, Any, Any]]
+TelegramHandler: TypeAlias = Callable[[Update, Any], Coroutine[Any, Any, Any]]
 
 
 def _setup_logging(level: str) -> None:
     logging.basicConfig(level=level, format="%(message)s")
 
 
-async def _set_commands(app: Application) -> None:
+async def _set_commands(app: TelegramApplication) -> None:
     commands = [
-        BotCommand("start", "Start"),
-        BotCommand("help", "Help"),
+        BotCommand("start", "Launch the Doprax assistant"),
+        BotCommand("help", "Get guidance and available commands"),
         BotCommand("lang", "Change language"),
-        BotCommand("menu", "Show menu"),
-        BotCommand("list_vms", "List VMs"),
-        BotCommand("create_vm", "Create VM wizard"),
-        BotCommand("status", "VM status"),
-        BotCommand("locations", "Locations & plans"),
-        BotCommand("os", "OS list"),
-        BotCommand("cancel", "Cancel wizard"),
-        BotCommand("health", "Health check"),
+        BotCommand("menu", "Open the main control center"),
+        BotCommand("list_vms", "View your virtual machines"),
+        BotCommand("create_vm", "Create a new VM step by step"),
+        BotCommand("status", "Check a VM status"),
+        BotCommand("locations", "Browse locations and plans"),
+        BotCommand("os", "Browse available operating systems"),
+        BotCommand("cancel", "Cancel the current workflow"),
+        BotCommand("health", "Check bot and API health"),
     ]
     await app.bot.set_my_commands(commands)
+
+
+async def _send_localized_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    lang: str,
+    message_key: str,
+    **kwargs: Any,
+) -> None:
+    chat = update.effective_chat
+    if chat is None:
+        return
+
+    await context.bot.send_message(
+        chat_id=chat.id,
+        text=I18N.t(lang, message_key, **kwargs),
+        reply_markup=main_reply_keyboard(lang),
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     deps: HandlerDeps = context.application.bot_data["deps"]
     storage: Storage = deps.storage
-    uid = user_id_from_update(update)
-    if uid is None:
+    user_id = user_id_from_update(update)
+    if user_id is None:
         return True
 
-    # Ensure user exists
-    await storage.ensure_user(uid)
+    await storage.ensure_user(user_id)
 
-    # Timeout recovery
-    expired = await reset_if_timed_out(storage, uid, deps.session_timeout_seconds)
+    expired = await reset_if_timed_out(
+        storage,
+        user_id,
+        deps.session_timeout_seconds,
+    )
     if expired:
-        lang = await get_lang(storage, uid)
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=I18N.t(lang, "timeout_reset"),
-                reply_markup=main_reply_keyboard(lang),
-                parse_mode=ParseMode.MARKDOWN,
-            )
+        lang = await get_lang(storage, user_id)
+        await _send_localized_message(update, context, lang, "timeout_reset")
 
-    # Rate limiting (skip for /start and language selection callbacks)
-    is_start_cmd = bool(update.message and update.message.text and update.message.text.strip().startswith("/start"))
-    is_lang_cb = bool(update.callback_query and update.callback_query.data and update.callback_query.data.startswith("LANG:"))
+    is_start_command = bool(
+        update.message and update.message.text and update.message.text.strip().startswith("/start")
+    )
+    is_language_callback = bool(
+        update.callback_query
+        and update.callback_query.data
+        and update.callback_query.data.startswith("LANG:")
+    )
 
-    if not (is_start_cmd or is_lang_cb):
-        allowed = await enforce_ratelimit(storage, uid, deps.ratelimit_cooldown_seconds)
-        if not allowed and update.effective_chat:
-            lang = await get_lang(storage, uid)
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=I18N.t(lang, "rate_limited"),
-                reply_markup=main_reply_keyboard(lang),
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            return False
+    if is_start_command or is_language_callback:
+        return True
 
-    return True
+    allowed = await enforce_ratelimit(
+        storage,
+        user_id,
+        deps.ratelimit_cooldown_seconds,
+    )
+    if allowed:
+        return True
+
+    lang = await get_lang(storage, user_id)
+    await _send_localized_message(update, context, lang, "rate_limited")
+    return False
 
 
 async def _unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     deps: HandlerDeps = context.application.bot_data["deps"]
-    uid = user_id_from_update(update)
-    if uid is None:
+    user_id = user_id_from_update(update)
+    if user_id is None:
         return
-    lang = await get_lang(deps.storage, uid)
-    if update.effective_chat:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=I18N.t(lang, "unknown_input"),
-            reply_markup=main_reply_keyboard(lang),
-            parse_mode=ParseMode.MARKDOWN,
-        )
+
+    lang = await get_lang(deps.storage, user_id)
+    await _send_localized_message(update, context, lang, "unknown_input")
 
 
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     deps: HandlerDeps = context.application.bot_data["deps"]
-    ref = new_correlation_id()
-    err = context.error
-    # Log stack trace to stdout, but redact secrets
-    LOGGER.exception(redact_secrets(f"[{ref}] Unhandled error: {err}"))
+    reference = new_correlation_id()
+    error = context.error
+    LOGGER.error(
+        redact_secrets(f"[{reference}] Unhandled error: {error}"),
+        exc_info=error,
+    )
 
-    if isinstance(update, Update):
-        uid = user_id_from_update(update)
-        lang = "en"
-        if uid is not None:
-            try:
-                lang = await get_lang(deps.storage, uid)
-                await deps.storage.set_state(uid, State.IDLE)
-                await deps.storage.reset_draft(uid)
-                await deps.storage.set_create_lock(uid, False)
-            except Exception:
-                lang = "en"
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=I18N.t(lang, "something_wrong", ref=ref),
-                reply_markup=main_reply_keyboard(lang),
-                parse_mode=ParseMode.MARKDOWN,
-            )
+    if not isinstance(update, Update):
+        return
+
+    lang = "en"
+    user_id = user_id_from_update(update)
+    if user_id is not None:
+        try:
+            lang = await get_lang(deps.storage, user_id)
+            await deps.storage.set_state(user_id, State.IDLE)
+            await deps.storage.reset_draft(user_id)
+            await deps.storage.set_create_lock(user_id, False)
+        except Exception as recovery_error:
+            LOGGER.warning(redact_secrets(f"[{reference}] Error recovery failed: {recovery_error}"))
+            lang = "en"
+
+    await _send_localized_message(
+        update,
+        context,
+        lang,
+        "something_wrong",
+        ref=reference,
+    )
 
 
 def _wrap(
-    handler: Callable[..., Coroutine[Any, Any, None]],
+    handler: HandlerCallable,
     *args: Any,
     **kwargs: Any,
-) -> Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]:
-    async def _inner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+) -> TelegramHandler:
+    async def _inner(update: Update, context: Any) -> None:
         if not await _preprocess(update, context):
             return
         await handler(update, context, *args, **kwargs)
@@ -172,42 +201,60 @@ def _wrap(
     return _inner
 
 
+async def _dispatch_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    deps: HandlerDeps = context.application.bot_data["deps"]
+    doprax: DopraxClient = context.application.bot_data["doprax"]
+    user_id = user_id_from_update(update)
+    if user_id is None:
+        return
+
+    session = await deps.storage.get_session(user_id)
+    if session.state is State.STATUS_WAIT_CODE:
+        await status_by_text(update, context, deps, doprax)
+        return
+
+    if is_create_state(session.state):
+        await create_by_text(update, context, deps, doprax)
+        return
+
+    await menu_by_text(update, context, deps)
+
+
 async def _dispatch_vm_mgmt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     deps: HandlerDeps = context.application.bot_data["deps"]
     doprax: DopraxClient = context.application.bot_data["doprax"]
     action = await vm_mgmt_callback(update, context, deps)
+
     if action == "list_vms":
         await list_vms_cmd(update, context, deps, doprax)
-    elif action == "status_prompt":
-        # Enter status prompt state by sending the command path
-        uid = user_id_from_update(update)
-        if uid is None:
+        return
+
+    if action == "status_prompt":
+        user_id = user_id_from_update(update)
+        if user_id is None:
             return
-        lang = await get_lang(deps.storage, uid)
-        await deps.storage.set_state(uid, State.STATUS_WAIT_CODE)
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=I18N.t(lang, "ask_vm_code"),
-                reply_markup=main_reply_keyboard(lang),
-                parse_mode=ParseMode.MARKDOWN,
-            )
-    elif action == "refresh_vm_mgmt":
+
+        await deps.storage.set_state(user_id, State.STATUS_WAIT_CODE)
+        lang = await get_lang(deps.storage, user_id)
+        await _send_localized_message(update, context, lang, "ask_vm_code")
+        return
+
+    if action == "refresh_vm_mgmt":
         await vm_mgmt_cmd(update, context, deps)
 
 
-async def _shutdown(app: Application) -> None:
+async def _shutdown(app: TelegramApplication) -> None:
     deps: HandlerDeps = app.bot_data["deps"]
     doprax: DopraxClient = app.bot_data["doprax"]
     await doprax.close()
     await deps.storage.close()
 
 
-async def _post_init(app: Application) -> None:
+async def _post_init(app: TelegramApplication) -> None:
     await _set_commands(app)
 
 
-def build_app(cfg: Config) -> Application:
+def build_app(cfg: Config) -> TelegramApplication:
     deps = HandlerDeps(storage=Storage(cfg.db_path), logger=LOGGER)
     doprax = DopraxClient(
         DopraxConfig(
@@ -217,20 +264,17 @@ def build_app(cfg: Config) -> Application:
         )
     )
 
-    app = (
-        ApplicationBuilder()
-        .token(cfg.telegram_bot_token)
-        .concurrent_updates(True)
-        .build()
+    app = cast(
+        TelegramApplication,
+        ApplicationBuilder().token(cfg.telegram_bot_token).concurrent_updates(True).build(),
     )
     app.bot_data["deps"] = deps
     app.bot_data["doprax"] = doprax
     app.bot_data["version"] = _safe_version()
     app.bot_data["dry_run"] = cfg.dry_run
 
-    # Wiring: open resources
-    async def _open_resources(_: Application) -> None:
-        os.makedirs(os.path.dirname(cfg.db_path) or ".", exist_ok=True)
+    async def _open_resources(_: TelegramApplication) -> None:
+        Path(cfg.db_path).parent.mkdir(parents=True, exist_ok=True)
         await deps.storage.open()
         await doprax.open()
 
@@ -244,93 +288,85 @@ def build_app(cfg: Config) -> Application:
 
 def _safe_version() -> str:
     try:
-        return pkg_version("doprax-telegram-bot")
-    except Exception:
+        return package_version("doprax-telegram-bot")
+    except PackageNotFoundError:
         return "0.0.0"
 
 
-async def _ensure_open(app: Application) -> None:
+async def _ensure_open(app: TelegramApplication) -> None:
     open_resources = app.bot_data.get("open_resources")
     if callable(open_resources):
         await open_resources(app)
 
 
-def _register_handlers(app: Application) -> None:
+def _register_handlers(app: TelegramApplication) -> None:
     deps: HandlerDeps = app.bot_data["deps"]
     doprax: DopraxClient = app.bot_data["doprax"]
-    ver: str = app.bot_data["version"]
+    version: str = app.bot_data["version"]
     dry_run: bool = app.bot_data["dry_run"]
 
-    # /start + language
     app.add_handler(CommandHandler("start", _wrap(start_cmd, deps)))
-    app.add_handler(
-        CallbackQueryHandler(_wrap(lang_callback, deps), pattern=r"^LANG:(fa|en)$")
-    )
+    app.add_handler(CallbackQueryHandler(_wrap(lang_callback, deps), pattern=r"^LANG:(fa|en)$"))
 
-    # /help /menu /lang (lang uses same start screen)
     app.add_handler(CommandHandler("help", _wrap(help_cmd, deps)))
     app.add_handler(CommandHandler("menu", _wrap(menu_cmd, deps)))
     app.add_handler(CommandHandler("lang", _wrap(start_cmd, deps)))
 
-    # VM management
     app.add_handler(CommandHandler("vm_mgmt", _wrap(vm_mgmt_cmd, deps)))
-    app.add_handler(CallbackQueryHandler(_dispatch_vm_mgmt, pattern=r"^MENU:"))
+    app.add_handler(CallbackQueryHandler(_wrap(_dispatch_vm_mgmt), pattern=r"^MENU:"))
 
-    # List / status
     app.add_handler(CommandHandler("list_vms", _wrap(list_vms_cmd, deps, doprax)))
     app.add_handler(CommandHandler("status", _wrap(status_cmd, deps, doprax)))
-    app.add_handler(
-        CallbackQueryHandler(_wrap(status_callback, deps, doprax), pattern=r"^VMSTAT:")
-    )
-    # Create wizard (text input)
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND, _wrap(create_by_text, deps, doprax)
-        )
-    )
+    app.add_handler(CallbackQueryHandler(_wrap(status_callback, deps, doprax), pattern=r"^VMSTAT:"))
 
-    # Status lookup (text input)
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND, _wrap(status_by_text, deps, doprax)
-        )
-    )
-
-    # Reply keyboard text shortcuts (fallback)
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, _wrap(menu_by_text, deps))
-    )
-
-    # Locations / OS
     app.add_handler(CommandHandler("locations", _wrap(locations_cmd, deps, doprax)))
     app.add_handler(CommandHandler("os", _wrap(os_cmd, deps, doprax)))
 
-    # Create wizard
     app.add_handler(CommandHandler("create_vm", _wrap(create_vm_cmd, deps, doprax)))
     app.add_handler(CommandHandler("cancel", _wrap(cancel_cmd, deps)))
     app.add_handler(
         CallbackQueryHandler(
-            _wrap(create_callback, deps, doprax), pattern=r"^(CREATE:|LOCPICK:|OSPICK:)"
+            _wrap(create_callback, deps, doprax),
+            pattern=r"^(CREATE:|LOCPICK:|OSPICK:)",
         )
     )
 
-
-    # Settings
     app.add_handler(CommandHandler("settings", _wrap(settings_cmd, deps)))
     app.add_handler(
-        CallbackQueryHandler(_wrap(settings_callback, deps, ver), pattern=r"^SET:")
+        CallbackQueryHandler(
+            _wrap(settings_callback, deps, version),
+            pattern=r"^SET:",
+        )
     )
 
-    # Health
     app.add_handler(CommandHandler("health", _wrap(health_cmd, deps, doprax, dry_run)))
-
-
-
-    # Fallback unknown
+    app.add_handler(MessageHandler(TEXT_MESSAGE_FILTER, _wrap(_dispatch_text)))
     app.add_handler(MessageHandler(filters.ALL, _unknown))
-
-    # Global error handler
     app.add_error_handler(_error_handler)
+
+
+async def _run(app: TelegramApplication) -> None:
+    await _ensure_open(app)
+
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with suppress(NotImplementedError):
+            loop.add_signal_handler(sig, stop_event.set)
+
+    updater = app.updater
+    if updater is None:
+        raise RuntimeError("Application was built without an updater")
+
+    await app.initialize()
+    await app.start()
+    await updater.start_polling(drop_pending_updates=True)
+
+    await stop_event.wait()
+
+    await updater.stop()
+    await app.stop()
+    await app.shutdown()
 
 
 def main() -> None:
@@ -346,35 +382,7 @@ def main() -> None:
 
     app = build_app(cfg)
     _register_handlers(app)
-
-    async def runner() -> None:
-        await _ensure_open(app)
-
-        # Graceful shutdown signals
-        loop = asyncio.get_running_loop()
-        stop_event = asyncio.Event()
-
-        def _stop(*_: object) -> None:
-            stop_event.set()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                loop.add_signal_handler(sig, _stop)
-            except NotImplementedError:
-                # Windows
-                pass
-
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling(drop_pending_updates=True)
-
-        await stop_event.wait()
-
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
-
-    asyncio.run(runner())
+    asyncio.run(_run(app))
 
 
 if __name__ == "__main__":

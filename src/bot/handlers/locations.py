@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from bot.doprax_client import DopraxClient

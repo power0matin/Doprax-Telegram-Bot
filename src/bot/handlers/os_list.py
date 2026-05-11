@@ -23,9 +23,7 @@ async def os_cmd(
     os_list = await doprax.get_os_list()
 
     slugs_raw = [
-        str(safe_get(x, "slug", default="")).strip()
-        for x in os_list
-        if isinstance(x, dict)
+        str(safe_get(x, "slug", default="")).strip() for x in os_list if isinstance(x, dict)
     ]
     slugs = sorted({s for s in slugs_raw if s})  # dedupe + sort
 

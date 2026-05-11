@@ -76,9 +76,7 @@ async def list_vms_cmd(
             safe_get(
                 vm,
                 "vmCode",
-                default=safe_get(
-                    vm, "vm_code", default=safe_get(vm, "code", default="")
-                ),
+                default=safe_get(vm, "vm_code", default=safe_get(vm, "code", default="")),
             )
         ).strip()
         if not code:

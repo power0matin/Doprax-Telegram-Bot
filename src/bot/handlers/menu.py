@@ -8,9 +8,7 @@ from bot.i18n import I18N
 from bot.states import State
 
 
-async def menu_cmd(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps
-) -> None:
+async def menu_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps) -> None:
     user_id = user_id_from_update(update)
     if user_id is None:
         return
@@ -44,4 +42,8 @@ async def menu_by_text(
         return
 
     # Dispatch by invoking command handlers via chat text
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=cmd)
+    chat = update.effective_chat
+    if chat is None:
+        return
+
+    await context.bot.send_message(chat_id=chat.id, text=cmd)

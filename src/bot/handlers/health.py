@@ -9,7 +9,11 @@ from bot.i18n import I18N
 
 
 async def health_cmd(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient, dry_run: bool
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    deps: HandlerDeps,
+    doprax: DopraxClient,
+    dry_run: bool,
 ) -> None:
     user_id = user_id_from_update(update)
     if user_id is None:

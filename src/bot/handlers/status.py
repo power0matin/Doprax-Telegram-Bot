@@ -1,21 +1,28 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from bot.doprax_client import DopraxClient
-from bot.handlers.common import HandlerDeps, get_lang, reply_menu, safe_answer_callback, user_id_from_update
+from bot.handlers.common import (
+    HandlerDeps,
+    get_lang,
+    reply_menu,
+    safe_answer_callback,
+    user_id_from_update,
+)
 from bot.i18n import I18N
 from bot.keyboards import CB, status_refresh_inline
 from bot.states import State
 from bot.utils import safe_get
 
 
-async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient) -> None:
+async def status_cmd(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient
+) -> None:
     user_id = user_id_from_update(update)
     if user_id is None:
         return
@@ -35,7 +42,9 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: H
     await reply_menu(update, context, deps, lang, I18N.t(lang, "ask_vm_code"))
 
 
-async def status_by_text(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient) -> None:
+async def status_by_text(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient
+) -> None:
     user_id = user_id_from_update(update)
     if user_id is None or update.message is None:
         return
@@ -49,7 +58,9 @@ async def status_by_text(update: Update, context: ContextTypes.DEFAULT_TYPE, dep
     await _send_status(update, context, deps, doprax, lang, vm_code)
 
 
-async def status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient) -> None:
+async def status_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient
+) -> None:
     if update.callback_query is None:
         return
     await safe_answer_callback(update)
@@ -65,7 +76,12 @@ async def status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, de
 
 
 async def _send_status(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps, doprax: DopraxClient, lang: str, vm_code: str
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    deps: HandlerDeps,
+    doprax: DopraxClient,
+    lang: str,
+    vm_code: str,
 ) -> None:
     if update.effective_chat is None:
         return
