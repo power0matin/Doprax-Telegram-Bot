@@ -1,223 +1,628 @@
-# Doprax Telegram Bot (FA/EN)
+<h1 align="center">🚀 Doprax Telegram Bot</h1>
 
-![CI](https://github.com/power0matin/doprax-telegram-bot/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+<p align="center">
+  <strong>Production-grade Telegram bot for managing Doprax VMs</strong>
+  <br />
+  <span>Async • Bilingual FA/EN • SQLite FSM • Doprax API • Docker-ready</span>
+</p>
 
-A production-grade, bilingual (فارسی/English) Telegram bot to manage Doprax VMs using the Doprax VM API.
+<p align="center">
+  <a href="https://github.com/power0matin/Doprax-Telegram-Bot/actions/workflows/ci.yml">
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/power0matin/Doprax-Telegram-Bot/ci.yml?branch=main&label=CI&style=for-the-badge">
+  </a>
+  <a href="https://github.com/power0matin/Doprax-Telegram-Bot/blob/main/LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/power0matin/Doprax-Telegram-Bot?style=for-the-badge&color=green">
+  </a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white">
+  <img alt="Telegram Bot" src="https://img.shields.io/badge/Telegram-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white">
+</p>
 
-Maintained by **Matin Shahabadi** — Website: `https://matinshahabadi.ir` — Email: `me@matinshahabadi.ir`
+<p align="center">
+  <img alt="Ruff" src="https://img.shields.io/badge/Lint-Ruff-46A2F1?style=flat-square">
+  <img alt="mypy" src="https://img.shields.io/badge/Types-mypy-blue?style=flat-square">
+  <img alt="pytest" src="https://img.shields.io/badge/Tests-pytest-0A9EDC?style=flat-square">
+  <img alt="Async" src="https://img.shields.io/badge/Async-httpx%20%2B%20PTB-success?style=flat-square">
+  <img alt="i18n" src="https://img.shields.io/badge/i18n-FA%20%2F%20EN-purple?style=flat-square">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white">
+</p>
 
-## Overview & Features
+<p align="center">
+  <a href="#overview">Overview</a>
+  ·
+  <a href="#features">Features</a>
+  ·
+  <a href="#architecture">Architecture</a>
+  ·
+  <a href="#quick-start">Quick Start</a>
+  ·
+  <a href="#docker">Docker</a>
+  ·
+  <a href="#commands">Commands</a>
+  ·
+  <a href="#security">Security</a>
+</p>
 
-- ✅ Async, non-blocking (python-telegram-bot v21+ + httpx async)
-- ✅ Fully menu-driven UX:
-  - Persistent **Reply Keyboard** main menu
-  - Inline “glass” menus for actions and wizard steps
-- ✅ Bilingual FA/EN with `/lang` switch at any time
-- ✅ Robust finite-state machine (FSM) persisted in SQLite
-- ✅ Create VM wizard with validation, Back/Cancel, timeout recovery
-- ✅ Rate limiting per user (cooldown)
-- ✅ Idempotency guard: prevents double VM creation on double-tap
-- ✅ Structured logging (JSON-ish) with secret redaction + correlation id
-- ✅ DRY_RUN mode to safely test without real Doprax API calls
-- ✅ Always responds in Telegram: global error handler converts exceptions into localized messages
 
-## Screenshots (what to capture)
+## Overview
 
-> Add screenshots later. Suggested captures:
+**Doprax Telegram Bot** is a production-oriented Telegram bot for managing Doprax virtual machines through the Doprax VM API.
 
-1. `/start` language selection inline buttons (FA/EN)
-2. Main reply keyboard menu (all items visible)
-3. VM list with inline buttons per VM
-4. Create VM wizard:
-   - Provider select
-   - Plan typed + quick picks
-   - Location typed + suggestions
-   - OS list select + quick picks
-   - Confirm screen (Create/Edit/Cancel)
-5. Status view with Refresh inline button
-6. Settings menu (language toggle + verbose mode)
+It is designed for a clean operational experience: users interact through Telegram menus, the bot keeps session state in SQLite, all network calls are async, and the codebase is protected by CI checks for linting, formatting, typing, testing, and package builds.
+
+The bot supports both **فارسی** and **English**, making it suitable for bilingual operators, teams, and end users.
+
+
+## Highlights
+
+- ⚡ **Async-first architecture** with `python-telegram-bot` and `httpx`
+- 🌐 **Bilingual UX** with runtime language switching: فارسی / English
+- 🧭 **Menu-driven Telegram interface** with persistent reply keyboard and inline actions
+- 🧠 **SQLite-backed FSM** for durable user sessions and creation workflows
+- 🛡️ **Safe VM creation flow** with validation, Back/Cancel, timeout recovery, and create lock
+- 🔁 **Deterministic DRY_RUN mode** for demos, tests, and local development
+- 📦 **Docker-ready deployment**
+- 🧪 **CI-protected quality gate** using Ruff, mypy, pytest, and package build
+- 🔐 **Secret-safe logging** with redaction and correlation IDs
+- 🩺 **Health command** for bot/API readiness checks
+
+
+## Features
+
+### Telegram UX
+
+- `/start` onboarding with language selection
+- Persistent reply keyboard for core actions
+- Inline menus for VM management, settings, and wizard steps
+- Status refresh button for VM status checks
+- Localized user-facing messages
+- Safe fallback for unknown input
+
+### VM Management
+
+- List virtual machines
+- Check VM status by VM code
+- Create VM through a guided step-by-step wizard
+- Resolve location and machine codes from Doprax metadata
+- Browse available locations, plans, and OS slugs
+
+### Create VM Wizard
+
+The VM creation wizard guides the user through:
+
+1. Provider selection
+2. Plan selection
+3. Preferred location
+4. VM name validation
+5. OS slug selection
+6. Final confirmation
+7. VM creation request
+
+Supported safeguards:
+
+- Back navigation
+- Cancel/reset
+- Session timeout recovery
+- Input validation
+- Duplicate-create prevention
+- User-friendly resolution suggestions
+
+### Reliability
+
+- Async API client with retry/backoff behavior
+- Centralized error handling
+- Localized recovery messages
+- SQLite persistence for state, preferences, drafts, locks, and rate limits
+- DRY_RUN mode for predictable test data
+
 
 ## Architecture
 
 ```mermaid
 flowchart TD
   TG[Telegram Update] --> APP[PTB Application]
-  APP --> H[Handlers]
-  H -->|read/write| DB[(SQLite via aiosqlite)]
-  H -->|async calls| DOP[DopraxClient (httpx)]
-  H --> I18N[i18n strings]
-  APP --> LOG[Structured Logger]
+  APP --> PRE[Preprocess Layer]
+  PRE --> RL[Rate Limit + Timeout Recovery]
+  RL --> ROUTER[State-aware Dispatcher]
+  ROUTER --> H[Handlers]
+  H --> DB[(SQLite / aiosqlite)]
+  H --> DOP[DopraxClient / httpx]
+  H --> I18N[i18n FA/EN]
+  APP --> ERR[Global Error Handler]
+  ERR --> LOG[Structured Logs + Secret Redaction]
   DOP -->|DRY_RUN=1| MOCK[Deterministic Mock Responses]
+  DOP -->|DRY_RUN=0| API[Doprax VM API]
 ```
 
-### Module layout
 
-- `src/bot/main.py` — entrypoint, app wiring, commands, global error handler
-- `src/bot/storage.py` — SQLite persistence for user prefs/state/drafts/ratelimits
-- `src/bot/states.py` — explicit FSM states + transition helpers
-- `src/bot/doprax_client.py` — isolated Doprax API client, retries, error mapping
-- `src/bot/handlers/*` — thin Telegram handlers (no heavy business logic)
-- `tests/` — unit tests (i18n, FSM, Doprax client, validation)
+## Module Layout
 
-## Setup
+```text
+src/bot/
+├── __init__.py
+├── config.py          # Environment-based configuration
+├── doprax_client.py   # Async Doprax API client and dry-run mocks
+├── errors.py          # Controlled exception hierarchy
+├── i18n.py            # FA/EN message catalog
+├── keyboards.py       # Reply and inline Telegram keyboards
+├── main.py            # Application wiring, routing, lifecycle, CI-safe entrypoint
+├── states.py          # FSM states and transition helpers
+├── storage.py         # Async SQLite persistence layer
+├── utils.py           # Validation, logging, redaction, helper utilities
+└── handlers/
+    ├── common.py
+    ├── create_vm.py
+    ├── health.py
+    ├── help.py
+    ├── list_vms.py
+    ├── locations.py
+    ├── menu.py
+    ├── os_list.py
+    ├── settings.py
+    ├── start.py
+    ├── status.py
+    └── vm_mgmt.py
+```
 
-### Requirements
+```text
+tests/
+├── test_doprax_client.py
+├── test_i18n.py
+├── test_states.py
+└── test_validation.py
+```
+
+
+## Requirements
 
 - Python **3.11+**
-- A Telegram bot token (`TELEGRAM_BOT_TOKEN`)
-- Doprax API key (`DOPRAX_API_KEY`) unless you run in `DRY_RUN=1`
+- Telegram bot token from BotFather
+- Doprax API key unless using `DRY_RUN=1`
+- SQLite-compatible filesystem
+- Optional: Docker / Docker Compose
 
-### Environment Variables
 
-Create `.env` from `.env.example`:
+## Environment Variables
 
-- `TELEGRAM_BOT_TOKEN` (required)
-- `DOPRAX_API_KEY` (required unless `DRY_RUN=1`)
-- `DOPRAX_BASE_URL` (default `https://www.doprax.com`)
-- `LOG_LEVEL` (default `INFO`)
-- `DB_PATH` (default `./data/bot.db`)
-- `DRY_RUN` (default `0`)
+Create a `.env` file from `.env.example`:
 
-### Local Run
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Yes | — | Telegram bot token from BotFather |
+| `DOPRAX_API_KEY` | Yes, unless `DRY_RUN=1` | — | Doprax API key |
+| `DOPRAX_BASE_URL` | No | `https://www.doprax.com` | Doprax API base URL |
+| `LOG_LEVEL` | No | `INFO` | Python logging level |
+| `DB_PATH` | No | `./data/bot.db` | SQLite database path |
+| `DRY_RUN` | No | `0` | Set to `1` for safe mock mode |
+
+Example:
+
+```env
+TELEGRAM_BOT_TOKEN=123456:telegram-token
+DOPRAX_API_KEY=your-doprax-api-key
+DOPRAX_BASE_URL=https://www.doprax.com
+LOG_LEVEL=INFO
+DB_PATH=./data/bot.db
+DRY_RUN=0
+```
+
+For local demo/testing without Doprax API calls:
+
+```env
+DRY_RUN=1
+```
+
+
+## Quick Start
+
+### Linux / macOS
+
+```bash
+git clone https://github.com/power0matin/Doprax-Telegram-Bot.git
+cd Doprax-Telegram-Bot
+
+python -m venv .venv
+. .venv/bin/activate
+
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+
+cp .env.example .env
+# edit .env
+
+python -m bot.main
+```
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/power0matin/Doprax-Telegram-Bot.git
+cd Doprax-Telegram-Bot
+
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+
+Copy-Item .env.example .env
+# edit .env
+
+python -m bot.main
+```
+
+If PowerShell blocks activation:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+
+## Makefile
+
+If you prefer `make`:
 
 ```bash
 make install
-cp .env.example .env
-# edit .env
+make lint
+make typecheck
+make test
 make run
 ```
+
 
 ## Docker
 
 ```bash
 cp .env.example .env
 # edit .env
+
 docker compose up --build
 ```
 
-- Polling mode is used by default.
-
-## Deployment (systemd)
-
-See: `scripts/systemd/doprax-telegram-bot.service`
-
-Example steps:
+Run in detached mode:
 
 ```bash
-sudo mkdir -p /opt/doprax-telegram-bot
-# copy repo to /opt/doprax-telegram-bot
-cd /opt/doprax-telegram-bot
-
-python -m venv .venv
-. .venv/bin/activate
-pip install -U pip
-pip install .
-
-sudo cp scripts/systemd/doprax-telegram-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now doprax-telegram-bot
-sudo journalctl -u doprax-telegram-bot -f
+docker compose up --build -d
 ```
 
-> Note: update paths and `User=` inside the systemd unit to match your server.
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
 
 ## Commands
 
-- `/start` — start + language selection
-- `/help` — help + quick guidance
-- `/lang` — change language
-- `/menu` — re-show main menu
-- `/list_vms` — list VMs
-- `/create_vm` — start create wizard
-- `/status <vm_code>` — VM status
-- `/locations` — locations & plans mapping
-- `/os` — OS list
-- `/cancel` — cancel current wizard
-- `/health` — bot + Doprax connectivity status
+| Command | Description |
+| --- | --- |
+| `/start` | Start the bot and choose language |
+| `/help` | Show help and quick guidance |
+| `/lang` | Change language |
+| `/menu` | Show the main menu |
+| `/list_vms` | List VMs |
+| `/create_vm` | Start the VM creation wizard |
+| `/status <vm_code>` | Check VM status |
+| `/locations` | Show locations and plan mappings |
+| `/os` | Show available OS slugs |
+| `/cancel` | Cancel the active workflow |
+| `/health` | Check bot and Doprax connectivity |
 
-## Menu map
 
-### Reply keyboard (persistent)
+## Menu Map
 
-- 📌 VM Management
-- ➕ Create VM
-- 📋 List VMs
-- 🔎 VM Status
-- 🌍 Locations & Plans
-- 💿 OS List
-- ⚙️ Settings
-- ❓ Help
+### Persistent Reply Keyboard
 
-### Inline menus
+```text
+📌 VM Management     ➕ Create VM
+📋 List VMs          🔎 VM Status
+🌍 Locations & Plans 💿 OS List
+⚙️ Settings          ❓ Help
+```
 
-- VM Management:
-  - List VMs
-  - Status by VM Code
-  - Refresh
+### Inline VM Management
 
-- Create VM Wizard:
-  - Provider select
-  - Plan input + quick picks
-  - Location input + suggested matches
-  - VM name input (validated)
-  - OS select + quick picks
-  - Confirm: ✅ Create | ✏️ Edit | ❌ Cancel
+- List VMs
+- Status by VM code
+- Refresh
 
-- Settings:
-  - Change Language
-  - Toggle Verbose Mode
-  - About
+### Create VM Wizard
+
+```text
+Provider
+  ↓
+Plan
+  ↓
+Preferred Location
+  ↓
+VM Name
+  ↓
+OS Slug
+  ↓
+Confirm
+  ↓
+Create
+```
+
+Available actions:
+
+- Back
+- Cancel
+- Edit
+- Create
+
+### Settings
+
+- Change language
+- Toggle verbose mode
+- About
+
+
+## Development Workflow
+
+Install development dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Run the same checks used by CI:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src tests --show-error-codes --pretty
+python -m pytest -q -vv --maxfail=1 --disable-warnings
+python -m build
+```
+
+Auto-fix style/lint issues:
+
+```bash
+python -m ruff check . --fix
+python -m ruff format .
+```
+
+
+## Quality Gate
+
+The CI workflow validates:
+
+1. **Linting** with Ruff
+2. **Formatting** with Ruff format
+3. **Static typing** with mypy
+4. **Unit tests** with pytest
+5. **Package build** with `python -m build`
+6. **Build artifacts** uploaded from `dist/`
+
+Current quality targets:
+
+- Python target: `3.11`
+- Typed source and tests
+- Strict-ish mypy configuration
+- Ruff rules for pyupgrade, bugbear, simplification, comprehensions, import order, and Ruff-native checks
+
+
+## Testing
+
+Run all tests:
+
+```bash
+python -m pytest -q -vv --maxfail=1 --disable-warnings
+```
+
+Run a specific test module:
+
+```bash
+python -m pytest tests/test_doprax_client.py -q -vv
+```
+
+Run tests with dry-run behavior:
+
+```bash
+DRY_RUN=1 python -m pytest
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DRY_RUN = "1"
+python -m pytest
+```
+
+
+## DRY_RUN Mode
+
+`DRY_RUN=1` allows safe local operation without real Doprax API calls.
+
+Useful for:
+
+- Local development
+- CI tests
+- Demo environments
+- UI/UX testing
+- Handler validation
+
+In dry-run mode:
+
+- Doprax API calls are mocked
+- VM list/status responses are deterministic
+- VM creation returns a mock provisioning response
+- `DOPRAX_API_KEY` is not required
+
+
+## Logging
+
+The bot emits structured JSON-style logs to stdout.
+
+Logging includes:
+
+- Startup events
+- Correlation IDs for user-facing errors
+- Redacted secrets
+- Safe operational context
+
+Known secret values are redacted from logs:
+
+- `TELEGRAM_BOT_TOKEN`
+- `DOPRAX_API_KEY`
+
+
+## Security
+
+- Never commit `.env`
+- Use `.env.example` for safe configuration examples
+- Keep Doprax API keys restricted and rotated
+- Run production deployments under a dedicated OS user
+- Protect SQLite DB file permissions
+- Do not expose logs publicly
+- Prefer Docker secrets or server-side environment variables in production
+
+See [`SECURITY.md`](SECURITY.md) for additional security guidance.
+
 
 ## Troubleshooting
 
-### Bot not responding
+### Bot does not respond
 
-- Verify `TELEGRAM_BOT_TOKEN`
-- Check container logs or stdout logs for startup errors
-- Confirm Telegram can reach your machine (if behind NAT/firewall)
+Check:
 
-### API errors
+```bash
+python -m bot.main
+```
 
-- Check `DOPRAX_API_KEY` and `DOPRAX_BASE_URL`
-- Use `/health` to verify connectivity
+Then verify:
 
-### Database issues
+- `TELEGRAM_BOT_TOKEN` is correct
+- The bot is not already running somewhere else
+- Logs do not show startup/config errors
+- Network access to Telegram is available
 
-- Ensure `DB_PATH` directory exists and is writable
-- If running docker, confirm volume mapping for `./data`
+### Dependency installation fails
 
-### Rate limiting
+Upgrade pip and reinstall:
 
-- Slow down repeated clicks/requests (cooldown is per-user)
+```bash
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+```
 
-### DRY_RUN mode
+### `pyproject.toml` parse error
 
-- Set `DRY_RUN=1`
-- You may omit `DOPRAX_API_KEY`
-- `/health` will show DRY_RUN status
+Validate that the file has no conflict markers:
 
-## QA Checklist
+```text
+<<<<<<<
+=======
+>>>>>>>
+```
 
-- [ ] Test `/start` language selection
-- [ ] Test `/menu` and reply keyboard behavior
-- [ ] Test create wizard end-to-end (all steps)
-- [ ] Test Back/Cancel at each wizard step
-- [ ] Test invalid inputs (plan, OS slug, name)
-- [ ] Test API downtime (bot must respond and not crash)
-- [ ] Test double-tap “Create” (should not create twice)
-- [ ] Test status refresh loop
-- [ ] Test `DRY_RUN=1` behavior (deterministic results)
+Also ensure there are no accidental pasted URLs in TOML sections.
 
-## Security Notes
+### Ruff fails
 
-- Never commit `.env` (secrets). Use `.env.example`.
-- Logs redact known secrets from env.
-- Prefer running the service under a dedicated OS user.
-- Protect SQLite DB file permissions (contains user preferences/state/drafts).
+Auto-fix where possible:
 
-See `SECURITY.md` for a concise threat model.
+```bash
+python -m ruff check . --fix
+python -m ruff format .
+python -m ruff check .
+```
+
+### mypy fails
+
+Run with full context:
+
+```bash
+python -m mypy src tests --show-error-codes --pretty
+```
+
+### Tests fail
+
+Run the first failing test only:
+
+```bash
+python -m pytest -q -vv --maxfail=1 --disable-warnings
+```
+
+### Database errors
+
+Check:
+
+- `DB_PATH` parent directory exists
+- The process has write permission
+- Docker volume is mounted correctly
+- SQLite files are not locked by another process
+
+### Doprax API errors
+
+Check:
+
+- `DOPRAX_API_KEY`
+- `DOPRAX_BASE_URL`
+- `/health` output
+- Network connectivity
+- Doprax API availability
+
+
+## Roadmap
+
+Potential improvements:
+
+- Webhook deployment mode
+- Admin-only commands
+- VM delete/restart actions
+- Pagination for large VM lists
+- More granular permission model
+- Metrics endpoint
+- Structured JSON logger adapter
+- Optional PostgreSQL storage backend
+- Integration tests against a staging Doprax API
+
+
+## Contributing
+
+Contributions are welcome.
+
+Recommended flow:
+
+1. Fork the repository
+2. Create a feature branch
+3. Run local checks
+4. Open a pull request
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src tests --show-error-codes --pretty
+python -m pytest -q -vv --maxfail=1 --disable-warnings
+```
+
+For larger changes, please open an issue first to discuss the design.
+
+
+## Maintainer
+
+Maintained by **Matin Shahabadi**.
+
+- Website: [`matinshahabadi.ir`](https://matinshahabadi.ir)
+- Email: [`me@matinshahabadi.ir`](mailto:me@matinshahabadi.ir)
+- GitHub: [`@power0matin`](https://github.com/power0matin)
+
 
 ## License
 
-MIT — see `LICENSE`.
+This project is licensed under the **MIT License**.
+
+See [`LICENSE`](LICENSE) for details.
