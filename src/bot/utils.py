@@ -6,106 +6,115 @@ import os
 import re
 import secrets
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 SECRET_KEYS = ("TELEGRAM_BOT_TOKEN", "DOPRAX_API_KEY")
 
+_REDACTION_TOKEN = "***REDACTED***"
+_PLAN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,15}$")
+_VM_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
-def new_correlation_id() -> str:
-    """Create a short correlation id for linking logs with user-facing errors."""
-    return secrets.token_hex(6)
-
-
-def redact_secrets(value: str) -> str:
-    """Redact known secrets that may appear in logs."""
-    redacted = value
-    for k in SECRET_KEYS:
-        s = (os.getenv(k) or "").strip()
-        if s:
-            redacted = redacted.replace(s, "***REDACTED***")
-    return redacted
-
-
-def json_log(logger: logging.Logger, level: int, event: str, **fields: Any) -> None:
-    """Emit a structured JSON-ish log line to stdout."""
-    payload: dict[str, Any] = {
-        "ts": int(time.time()),
-        "event": event,
-        **fields,
-    }
-    msg = redact_secrets(json.dumps(payload, ensure_ascii=False, default=str))
-    logger.log(level, msg)
+_PROVIDER_ALIASES = {
+    "digitalocean": "Digitalocean",
+    "digital ocean": "Digitalocean",
+    "hetzner": "Hetzner",
+    "ovh": "OVH",
+    "gcore": "Gcore",
+    "vultr": "Vultr",
+    "scaleway": "Scaleway",
+}
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ValidationResult:
     ok: bool
     value: str
 
 
-_PROVIDER_SET = {
-    "Digitalocean": "Digitalocean",
-    "Hetzner": "Hetzner",
-    "OVH": "OVH",
-    "Gcore": "Gcore",
-    "Vultr": "Vultr",
-    "Scaleway": "Scaleway",
-}
+def new_correlation_id() -> str:
+    """Create a compact id that links user-facing errors to structured logs."""
+    return secrets.token_hex(6)
 
-_PLAN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,15}$")
-_NAME_RE = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+
+def redact_secrets(value: str) -> str:
+    """Remove configured secrets from strings before they are logged."""
+    redacted = value
+    for key in SECRET_KEYS:
+        secret = (os.getenv(key) or "").strip()
+        if secret:
+            redacted = redacted.replace(secret, _REDACTION_TOKEN)
+    return redacted
+
+
+def json_log(logger: logging.Logger, level: int, event: str, **fields: Any) -> None:
+    """Emit a redacted structured log entry as a single JSON line."""
+    payload: dict[str, Any] = {
+        "ts": int(time.time()),
+        "event": event,
+        **fields,
+    }
+    message = json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True)
+    logger.log(level, redact_secrets(message))
 
 
 def validate_provider(text: str) -> ValidationResult:
-    """Validate provider name against allowed providers."""
-    t = text.strip()
-    return ValidationResult(ok=t in _PROVIDER_SET, value=_PROVIDER_SET.get(t, ""))
+    """Validate and normalize a supported cloud provider name."""
+    normalized = _normalized_label(text)
+    provider = _PROVIDER_ALIASES.get(normalized, "")
+    return ValidationResult(ok=bool(provider), value=provider)
 
 
 def validate_plan(text: str) -> ValidationResult:
-    """Validate plan string (2-16 chars, letters/digits/dash/underscore)."""
-    t = text.strip()
-    return ValidationResult(ok=bool(_PLAN_RE.fullmatch(t)), value=t)
+    """Validate a Doprax plan slug: 2-16 chars, alnum/dash/underscore."""
+    plan = text.strip()
+    return ValidationResult(ok=bool(_PLAN_RE.fullmatch(plan)), value=plan)
 
 
 def validate_location(text: str) -> ValidationResult:
-    """Validate preferred location string (2-64 chars)."""
-    t = " ".join(text.strip().split())
-    return ValidationResult(ok=2 <= len(t) <= 64, value=t)
+    """Validate a user-facing location label while preserving readable casing."""
+    location = " ".join(text.strip().split())
+    return ValidationResult(ok=2 <= len(location) <= 64, value=location)
 
 
 def validate_vm_name(text: str) -> ValidationResult:
-    """Validate VM name (DNS-ish: letters/digits + dash segments, max 32)."""
-    t = text.strip()
-    if len(t) < 1 or len(t) > 32:
-        return ValidationResult(ok=False, value=t)
-    return ValidationResult(ok=bool(_NAME_RE.fullmatch(t)), value=t)
+    """Validate and normalize a DNS-friendly VM name."""
+    name = text.strip().lower()
+    if not 1 <= len(name) <= 32:
+        return ValidationResult(ok=False, value=name)
+    return ValidationResult(ok=bool(_VM_NAME_RE.fullmatch(name)), value=name)
 
 
 def validate_os_slug(text: str, allowed: Iterable[str]) -> ValidationResult:
-    """Validate OS slug is in allowed list."""
-    t = text.strip()
-    allowed_set = set(allowed)
-    return ValidationResult(ok=t in allowed_set, value=t)
+    """Validate that the selected OS slug exists in the provider response."""
+    slug = text.strip()
+    return ValidationResult(ok=slug in set(allowed), value=slug)
 
 
 def compact_lines(lines: Iterable[str], limit: int = 20) -> str:
-    """Join lines with a safe limit."""
-    out: list[str] = []
-    for i, line in enumerate(lines):
-        if i >= limit:
-            out.append("…")
+    """Join lines with a display-safe maximum number of entries."""
+    if limit <= 0:
+        return ""
+
+    output: list[str] = []
+    for index, line in enumerate(lines):
+        if index >= limit:
+            output.append("…")
             break
-        out.append(line)
-    return "\n".join(out)
+        output.append(line)
+    return "\n".join(output)
 
 
 def safe_get(mapping: Mapping[str, Any], *path: str, default: Any = None) -> Any:
-    """Safely get nested keys."""
-    cur: Any = mapping
-    for p in path:
-        if not isinstance(cur, dict) or p not in cur:
+    """Safely read a nested mapping path without raising KeyError/TypeError."""
+    current: Any = mapping
+    for key in path:
+        if not isinstance(current, Mapping) or key not in current:
             return default
-        cur = cur[p]
-    return cur
+        current = current[key]
+    return current
+
+
+def _normalized_label(value: str) -> str:
+    return " ".join(value.casefold().strip().split())

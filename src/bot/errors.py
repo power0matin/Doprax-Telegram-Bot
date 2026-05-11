@@ -7,7 +7,7 @@ class BotError(Exception):
     """Base class for controlled bot errors."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DopraxError(BotError):
     """Base Doprax error with a user-safe message key."""
 
@@ -16,24 +16,24 @@ class DopraxError(BotError):
 
 
 class DopraxAuthError(DopraxError):
-    pass
+    """Authentication or authorization failed."""
 
 
 class DopraxNotFound(DopraxError):
-    pass
+    """The requested Doprax resource was not found."""
 
 
 class DopraxValidationError(DopraxError):
-    pass
+    """The Doprax API rejected the request payload."""
 
 
 class DopraxRateLimited(DopraxError):
-    pass
+    """The Doprax API rate limit was exceeded."""
 
 
 class DopraxServerError(DopraxError):
-    pass
+    """The Doprax API returned a server-side error."""
 
 
 class DopraxNetworkError(DopraxError):
-    pass
+    """The Doprax API could not be reached reliably."""

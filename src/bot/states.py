@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from enum import Enum
-from typing import Iterable
+from enum import StrEnum
+from itertools import pairwise
 
 
-class State(str, Enum):
-    """Finite states persisted per user."""
+class State(StrEnum):
+    """Finite, persisted user-session states for the Telegram bot."""
 
     IDLE = "IDLE"
     STATUS_WAIT_CODE = "STATUS_WAIT_CODE"
@@ -27,62 +28,55 @@ CREATE_FLOW: tuple[State, ...] = (
     State.CREATE_CONFIRM,
 )
 
+_CREATE_FLOW_INDEX = {state: index for index, state in enumerate(CREATE_FLOW)}
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class Transition:
+    """Allowed state movement inside a finite-state workflow."""
+
     from_state: State
     to_state: State
 
 
-_ALLOWED: set[Transition] = set()
-
-# Idle entry points
-_ALLOWED.add(Transition(State.IDLE, State.STATUS_WAIT_CODE))
-_ALLOWED.add(Transition(State.IDLE, State.CREATE_PROVIDER))
-
-# Status -> Idle
-_ALLOWED.add(Transition(State.STATUS_WAIT_CODE, State.IDLE))
-
-# Create wizard linear
-for a, b in zip(CREATE_FLOW, CREATE_FLOW[1:], strict=True):
-    _ALLOWED.add(Transition(a, b))
-
-# Back transitions in wizard
-for a, b in zip(CREATE_FLOW[1:], CREATE_FLOW[:-1], strict=True):
-    _ALLOWED.add(Transition(a, b))
-
-# Cancel/reset from anywhere
-for s in State:
-    if s != State.IDLE:
-        _ALLOWED.add(Transition(s, State.IDLE))
+_ALLOWED: frozenset[Transition] = frozenset(
+    {
+        Transition(State.IDLE, State.STATUS_WAIT_CODE),
+        Transition(State.IDLE, State.CREATE_PROVIDER),
+        Transition(State.STATUS_WAIT_CODE, State.IDLE),
+        *(Transition(current, next_) for current, next_ in pairwise(CREATE_FLOW)),
+        *(Transition(next_, current) for current, next_ in pairwise(CREATE_FLOW)),
+        *(Transition(state, State.IDLE) for state in State if state is not State.IDLE),
+    }
+)
 
 
 def can_transition(from_state: State, to_state: State) -> bool:
-    """Check transition validity."""
+    """Return True when the requested state transition is valid."""
     return Transition(from_state, to_state) in _ALLOWED
 
 
 def previous_state(state: State) -> State:
-    """Get previous state in create wizard (or IDLE fallback)."""
-    if state in CREATE_FLOW:
-        idx = CREATE_FLOW.index(state)
-        return CREATE_FLOW[idx - 1] if idx > 0 else State.IDLE
-    return State.IDLE
+    """Return the previous create-flow state, or IDLE outside the wizard."""
+    index = _CREATE_FLOW_INDEX.get(state)
+    if index is None or index == 0:
+        return State.IDLE
+    return CREATE_FLOW[index - 1]
 
 
 def next_state(state: State) -> State:
-    """Get next state in create wizard (or IDLE fallback)."""
-    if state in CREATE_FLOW:
-        idx = CREATE_FLOW.index(state)
-        return CREATE_FLOW[idx + 1] if idx < len(CREATE_FLOW) - 1 else State.IDLE
-    return State.IDLE
+    """Return the next create-flow state, or IDLE at the end/outside the wizard."""
+    index = _CREATE_FLOW_INDEX.get(state)
+    if index is None or index == len(CREATE_FLOW) - 1:
+        return State.IDLE
+    return CREATE_FLOW[index + 1]
 
 
 def is_create_state(state: State) -> bool:
-    """Return True if state is within create flow."""
-    return state in CREATE_FLOW
+    """Return True when the state belongs to the VM creation wizard."""
+    return state in _CREATE_FLOW_INDEX
 
 
 def all_states() -> Iterable[State]:
-    """Return all states."""
-    return list(State)
+    """Return every persisted session state."""
+    return tuple(State)

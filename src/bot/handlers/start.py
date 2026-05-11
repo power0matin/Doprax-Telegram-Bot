@@ -16,9 +16,7 @@ from bot.keyboards import CB, lang_keyboard
 from bot.states import State
 
 
-async def start_cmd(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps
-) -> None:
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps) -> None:
     user_id = user_id_from_update(update)
     if user_id is None or update.effective_chat is None:
         return
@@ -42,11 +40,7 @@ async def lang_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps
 ) -> None:
     user_id = user_id_from_update(update)
-    if (
-        user_id is None
-        or update.effective_chat is None
-        or update.callback_query is None
-    ):
+    if user_id is None or update.effective_chat is None or update.callback_query is None:
         return
     await safe_answer_callback(update)
 

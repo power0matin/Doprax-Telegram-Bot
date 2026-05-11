@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -226,8 +226,7 @@ async def create_by_text(
         await deps.storage.set_state(user_id, State.CREATE_NAME)
 
         # Provide suggestions (best-effort) based on current draft plan
-        draft = await deps.storage.get_draft(user_id)
-        suggestions: Optional[list[tuple[str, str]]] = None
+        suggestions: list[tuple[str, str]] | None = None
         try:
             locs = await doprax.get_locations()
             suggestions = _location_suggestions(locs, vr.value)
@@ -279,9 +278,7 @@ async def create_by_text(
         return
 
 
-async def cancel_cmd(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps
-) -> None:
+async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: HandlerDeps) -> None:
     user_id = user_id_from_update(update)
     if user_id is None:
         return
@@ -369,9 +366,7 @@ async def _allowed_os(doprax: DopraxClient) -> list[str]:
     return [s for s in allowed if s]
 
 
-def _location_suggestions(
-    locs: list[dict[str, Any]], preferred: str
-) -> list[tuple[str, str]]:
+def _location_suggestions(locs: list[dict[str, Any]], preferred: str) -> list[tuple[str, str]]:
     pref = preferred.lower()
     out: list[tuple[str, str]] = []
     for loc in locs:
@@ -400,10 +395,8 @@ async def _send_confirm(
     # If user picked "code:..." keep preferred string for scoring, but we can still resolve via name/plan.
     pref_for_resolve = pref if not pref.startswith("code:") else ""
 
-    location_code, machine_code, suggestions = (
-        await doprax.resolve_location_and_machine_codes(
-            draft.plan, pref_for_resolve or " "
-        )
+    location_code, machine_code, suggestions = await doprax.resolve_location_and_machine_codes(
+        draft.plan, pref_for_resolve or " "
     )
 
     suggestions_text = (
@@ -454,16 +447,13 @@ async def _perform_create(
     ref_time = int(time.time())
     try:
         draft = await deps.storage.get_draft(user_id)
+
         # Resolve codes
         pref_for_resolve = (
-            draft.preferred_location
-            if not draft.preferred_location.startswith("code:")
-            else ""
+            draft.preferred_location if not draft.preferred_location.startswith("code:") else ""
         )
-        location_code, machine_code, suggestions = (
-            await doprax.resolve_location_and_machine_codes(
-                draft.plan, pref_for_resolve or " "
-            )
+        location_code, machine_code, suggestions = await doprax.resolve_location_and_machine_codes(
+            draft.plan, pref_for_resolve or " "
         )
 
         # If user explicitly picked a location code, prefer it
@@ -491,9 +481,7 @@ async def _perform_create(
         }
 
         created = await doprax.create_vm(payload)
-        code = str(
-            safe_get(created, "vm_code", default=safe_get(created, "code", default=""))
-        )
+        code = str(safe_get(created, "vm_code", default=safe_get(created, "code", default="")))
         status = str(safe_get(created, "status", default="UNKNOWN"))
 
         await deps.storage.set_state(user_id, State.IDLE)

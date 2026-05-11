@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from telegram import (
     InlineKeyboardButton,
@@ -61,9 +61,7 @@ def vm_mgmt_inline(lang: Lang) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    t(lang, "btn_list_vms"), callback_data=f"{CB.MENU}list_vms"
-                ),
+                InlineKeyboardButton(t(lang, "btn_list_vms"), callback_data=f"{CB.MENU}list_vms"),
                 InlineKeyboardButton(
                     t(lang, "btn_status"), callback_data=f"{CB.MENU}status_prompt"
                 ),
@@ -77,9 +75,7 @@ def vm_mgmt_inline(lang: Lang) -> InlineKeyboardMarkup:
     )
 
 
-def back_cancel_row(
-    lang: Lang, back_cb: str, cancel_cb: str
-) -> list[InlineKeyboardButton]:
+def back_cancel_row(lang: Lang, back_cb: str, cancel_cb: str) -> list[InlineKeyboardButton]:
     t = I18N.t
     return [
         InlineKeyboardButton(t(lang, "btn_back"), callback_data=back_cb),
@@ -92,9 +88,7 @@ def create_provider_inline(lang: Lang) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for i in range(0, len(providers), 2):
         row = [
-            InlineKeyboardButton(
-                providers[i], callback_data=f"{CB.CREATE}prov:{providers[i]}"
-            ),
+            InlineKeyboardButton(providers[i], callback_data=f"{CB.CREATE}prov:{providers[i]}"),
         ]
         if i + 1 < len(providers):
             row.append(
@@ -114,12 +108,7 @@ def create_plan_inline(lang: Lang) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for i in range(0, len(quick), 3):
         chunk = quick[i : i + 3]
-        rows.append(
-            [
-                InlineKeyboardButton(x, callback_data=f"{CB.CREATE}plan:{x}")
-                for x in chunk
-            ]
-        )
+        rows.append([InlineKeyboardButton(x, callback_data=f"{CB.CREATE}plan:{x}") for x in chunk])
     rows.append(back_cancel_row(lang, f"{CB.CREATE}back", f"{CB.CREATE}cancel"))
     return InlineKeyboardMarkup(rows)
 
@@ -130,9 +119,7 @@ def create_location_inline(
     rows: list[list[InlineKeyboardButton]] = []
     if suggestions:
         for name, code in suggestions[:6]:
-            rows.append(
-                [InlineKeyboardButton(f"{name}", callback_data=f"{CB.LOC_PICK}{code}")]
-            )
+            rows.append([InlineKeyboardButton(f"{name}", callback_data=f"{CB.LOC_PICK}{code}")])
     rows.append(back_cancel_row(lang, f"{CB.CREATE}back", f"{CB.CREATE}cancel"))
     return InlineKeyboardMarkup(rows)
 
@@ -145,9 +132,7 @@ def create_os_inline(
     rows: list[list[InlineKeyboardButton]] = []
     for i in range(0, len(quick_list), 2):
         chunk = quick_list[i : i + 2]
-        rows.append(
-            [InlineKeyboardButton(x, callback_data=f"{CB.OS_PICK}{x}") for x in chunk]
-        )
+        rows.append([InlineKeyboardButton(x, callback_data=f"{CB.OS_PICK}{x}") for x in chunk])
     rows.append(back_cancel_row(lang, f"{CB.CREATE}back", f"{CB.CREATE}cancel"))
     return InlineKeyboardMarkup(rows)
 
@@ -160,9 +145,7 @@ def create_confirm_inline(lang: Lang) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     t(lang, "btn_create"), callback_data=f"{CB.CREATE}confirm:create"
                 ),
-                InlineKeyboardButton(
-                    t(lang, "btn_edit"), callback_data=f"{CB.CREATE}confirm:edit"
-                ),
+                InlineKeyboardButton(t(lang, "btn_edit"), callback_data=f"{CB.CREATE}confirm:edit"),
             ],
             back_cancel_row(lang, f"{CB.CREATE}back", f"{CB.CREATE}cancel"),
         ]
@@ -173,21 +156,13 @@ def settings_inline(lang: Lang) -> InlineKeyboardMarkup:
     t = I18N.t
     return InlineKeyboardMarkup(
         [
-            [
-                InlineKeyboardButton(
-                    t(lang, "btn_change_lang"), callback_data=f"{CB.SETTINGS}lang"
-                )
-            ],
+            [InlineKeyboardButton(t(lang, "btn_change_lang"), callback_data=f"{CB.SETTINGS}lang")],
             [
                 InlineKeyboardButton(
                     t(lang, "btn_toggle_verbose"), callback_data=f"{CB.SETTINGS}verbose"
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    t(lang, "btn_about"), callback_data=f"{CB.SETTINGS}about"
-                )
-            ],
+            [InlineKeyboardButton(t(lang, "btn_about"), callback_data=f"{CB.SETTINGS}about")],
         ]
     )
 
@@ -211,11 +186,5 @@ def vm_list_inline(lang: Lang, vm_code: str) -> InlineKeyboardMarkup:
 def status_refresh_inline(lang: Lang, vm_code: str) -> InlineKeyboardMarkup:
     t = I18N.t
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    t(lang, "btn_refresh"), callback_data=f"{CB.VM_STATUS}{vm_code}"
-                )
-            ]
-        ]
+        [[InlineKeyboardButton(t(lang, "btn_refresh"), callback_data=f"{CB.VM_STATUS}{vm_code}")]]
     )

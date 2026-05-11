@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from bot.handlers.common import HandlerDeps, get_lang, reply_menu, user_id_from_update
@@ -26,7 +25,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, deps: Han
         "/locations\n"
         "/os\n"
         "/cancel\n"
-        "/health\n\n"
-        + I18N.t(lang, "unknown_input")
+        "/health\n\n" + I18N.t(lang, "unknown_input")
     )
     await reply_menu(update, context, deps, lang, text)

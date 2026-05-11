@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
-
+from typing import Any
 
 Lang = str  # "fa" | "en"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class I18n:
     """Simple i18n dictionary with parameter formatting."""
 
