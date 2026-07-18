@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-import signal
 from collections.abc import Callable, Coroutine
-from contextlib import suppress
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -59,7 +56,9 @@ TEXT_MESSAGE_FILTER = filters.TEXT & ~filters.COMMAND
 
 TelegramApplication: TypeAlias = Application[Any, Any, Any, Any, Any, Any]
 HandlerCallable: TypeAlias = Callable[..., Coroutine[Any, Any, Any]]
-TelegramHandler: TypeAlias = Callable[[Update, Any], Coroutine[Any, Any, Any]]
+TelegramHandler: TypeAlias = Callable[
+    [Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]
+]
 
 
 def _setup_logging(level: str) -> None:
@@ -103,6 +102,8 @@ async def _send_localized_message(
 
 
 async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    if context.application is None:
+        return True
     deps: HandlerDeps = context.application.bot_data["deps"]
     storage: Storage = deps.storage
     user_id = user_id_from_update(update)
@@ -146,6 +147,8 @@ async def _preprocess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> boo
 
 
 async def _unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.application is None:
+        return
     deps: HandlerDeps = context.application.bot_data["deps"]
     user_id = user_id_from_update(update)
     if user_id is None:
@@ -156,6 +159,8 @@ async def _unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.application is None:
+        return
     deps: HandlerDeps = context.application.bot_data["deps"]
     reference = new_correlation_id()
     error = context.error
@@ -193,7 +198,7 @@ def _wrap(
     *args: Any,
     **kwargs: Any,
 ) -> TelegramHandler:
-    async def _inner(update: Update, context: Any) -> None:
+    async def _inner(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await _preprocess(update, context):
             return
         await handler(update, context, *args, **kwargs)
@@ -202,6 +207,8 @@ def _wrap(
 
 
 async def _dispatch_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.application is None:
+        return
     deps: HandlerDeps = context.application.bot_data["deps"]
     doprax: DopraxClient = context.application.bot_data["doprax"]
     user_id = user_id_from_update(update)
@@ -221,6 +228,8 @@ async def _dispatch_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def _dispatch_vm_mgmt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.application is None:
+        return
     deps: HandlerDeps = context.application.bot_data["deps"]
     doprax: DopraxClient = context.application.bot_data["doprax"]
     action = await vm_mgmt_callback(update, context, deps)
@@ -251,6 +260,12 @@ async def _shutdown(app: TelegramApplication) -> None:
 
 
 async def _post_init(app: TelegramApplication) -> None:
+    deps: HandlerDeps = app.bot_data["deps"]
+    doprax: DopraxClient = app.bot_data["doprax"]
+    db_path: str = app.bot_data["db_path"]
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    await deps.storage.open()
+    await doprax.open()
     await _set_commands(app)
 
 
@@ -272,16 +287,10 @@ def build_app(cfg: Config) -> TelegramApplication:
     app.bot_data["doprax"] = doprax
     app.bot_data["version"] = _safe_version()
     app.bot_data["dry_run"] = cfg.dry_run
-
-    async def _open_resources(_: TelegramApplication) -> None:
-        Path(cfg.db_path).parent.mkdir(parents=True, exist_ok=True)
-        await deps.storage.open()
-        await doprax.open()
+    app.bot_data["db_path"] = cfg.db_path
 
     app.post_init = _post_init
     app.post_shutdown = _shutdown
-    app.post_stop = _shutdown
-    app.bot_data["open_resources"] = _open_resources
 
     return app
 
@@ -291,12 +300,6 @@ def _safe_version() -> str:
         return package_version("doprax-telegram-bot")
     except PackageNotFoundError:
         return "0.0.0"
-
-
-async def _ensure_open(app: TelegramApplication) -> None:
-    open_resources = app.bot_data.get("open_resources")
-    if callable(open_resources):
-        await open_resources(app)
 
 
 def _register_handlers(app: TelegramApplication) -> None:
@@ -345,30 +348,6 @@ def _register_handlers(app: TelegramApplication) -> None:
     app.add_error_handler(_error_handler)
 
 
-async def _run(app: TelegramApplication) -> None:
-    await _ensure_open(app)
-
-    loop = asyncio.get_running_loop()
-    stop_event = asyncio.Event()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with suppress(NotImplementedError):
-            loop.add_signal_handler(sig, stop_event.set)
-
-    updater = app.updater
-    if updater is None:
-        raise RuntimeError("Application was built without an updater")
-
-    await app.initialize()
-    await app.start()
-    await updater.start_polling(drop_pending_updates=True)
-
-    await stop_event.wait()
-
-    await updater.stop()
-    await app.stop()
-    await app.shutdown()
-
-
 def main() -> None:
     cfg = Config.load()
     _setup_logging(cfg.log_level)
@@ -382,7 +361,7 @@ def main() -> None:
 
     app = build_app(cfg)
     _register_handlers(app)
-    asyncio.run(_run(app))
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":

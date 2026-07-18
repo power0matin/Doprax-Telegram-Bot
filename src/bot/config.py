@@ -21,7 +21,7 @@ class Config:
     def load() -> Config:
         telegram_bot_token = _env("TELEGRAM_BOT_TOKEN")
         doprax_api_key = _env("DOPRAX_API_KEY")
-        doprax_base_url = _env("DOPRAX_BASE_URL", "https://www.doprax.com")
+        doprax_base_url = _env("DOPRAX_BASE_URL", "https://doprax.com")
         log_level = _env("LOG_LEVEL", "INFO").upper()
         db_path = _env("DB_PATH", "./data/bot.db")
         dry_run = _env_bool("DRY_RUN")
