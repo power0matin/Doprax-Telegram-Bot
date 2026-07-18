@@ -56,9 +56,7 @@ TEXT_MESSAGE_FILTER = filters.TEXT & ~filters.COMMAND
 
 TelegramApplication: TypeAlias = Application[Any, Any, Any, Any, Any, Any]
 HandlerCallable: TypeAlias = Callable[..., Coroutine[Any, Any, Any]]
-TelegramHandler: TypeAlias = Callable[
-    [Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]
-]
+TelegramHandler: TypeAlias = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]]
 
 
 def _setup_logging(level: str) -> None:
