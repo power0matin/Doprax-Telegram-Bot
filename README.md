@@ -52,7 +52,6 @@
   <a href="#security">Security</a>
 </p>
 
-
 ## Overview
 
 **Doprax Telegram Bot** is a production-oriented Telegram bot for managing Doprax virtual machines through the Doprax VM API.
@@ -60,7 +59,6 @@
 It is designed for a clean operational experience: users interact through Telegram menus, the bot keeps session state in SQLite, all network calls are async, and the codebase is protected by CI checks for linting, formatting, typing, testing, and package builds.
 
 The bot supports both **فارسی** and **English**, making it suitable for bilingual operators, teams, and end users.
-
 
 ## Highlights
 
@@ -74,7 +72,6 @@ The bot supports both **فارسی** and **English**, making it suitable for bil
 - 🧪 **CI-protected quality gate** using Ruff, mypy, pytest, and package build
 - 🔐 **Secret-safe logging** with redaction and correlation IDs
 - 🩺 **Health command** for bot/API readiness checks
-
 
 ## Features
 
@@ -124,7 +121,6 @@ Supported safeguards:
 - SQLite persistence for state, preferences, drafts, locks, and rate limits
 - DRY_RUN mode for predictable test data
 
-
 ## Architecture
 
 ```mermaid
@@ -142,7 +138,6 @@ flowchart TD
   DOP -->|DRY_RUN=1| MOCK[Deterministic Mock Responses]
   DOP -->|DRY_RUN=0| API[Doprax VM API]
 ```
-
 
 ## Module Layout
 
@@ -181,7 +176,6 @@ tests/
 └── test_validation.py
 ```
 
-
 ## Requirements
 
 - Python **3.11+**
@@ -189,7 +183,6 @@ tests/
 - Doprax API key unless using `DRY_RUN=1`
 - SQLite-compatible filesystem
 - Optional: Docker / Docker Compose
-
 
 ## Environment Variables
 
@@ -224,7 +217,6 @@ For local demo/testing without Doprax API calls:
 ```env
 DRY_RUN=1
 ```
-
 
 ## Quick Start
 
@@ -271,7 +263,6 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-
 ## Makefile
 
 If you prefer `make`:
@@ -283,7 +274,6 @@ make typecheck
 make test
 make run
 ```
-
 
 ## Docker
 
@@ -312,7 +302,6 @@ Stop:
 docker compose down
 ```
 
-
 ## Commands
 
 | Command | Description |
@@ -328,7 +317,6 @@ docker compose down
 | `/os` | Show available OS slugs |
 | `/cancel` | Cancel the active workflow |
 | `/health` | Check bot and Doprax connectivity |
-
 
 ## Menu Map
 
@@ -378,7 +366,6 @@ Available actions:
 - Toggle verbose mode
 - About
 
-
 ## Development Workflow
 
 Install development dependencies:
@@ -404,7 +391,6 @@ python -m ruff check . --fix
 python -m ruff format .
 ```
 
-
 ## Quality Gate
 
 The CI workflow validates:
@@ -422,7 +408,6 @@ Current quality targets:
 - Typed source and tests
 - Strict-ish mypy configuration
 - Ruff rules for pyupgrade, bugbear, simplification, comprehensions, import order, and Ruff-native checks
-
 
 ## Testing
 
@@ -451,7 +436,6 @@ $env:DRY_RUN = "1"
 python -m pytest
 ```
 
-
 ## DRY_RUN Mode
 
 `DRY_RUN=1` allows safe local operation without real Doprax API calls.
@@ -471,7 +455,6 @@ In dry-run mode:
 - VM creation returns a mock provisioning response
 - `DOPRAX_API_KEY` is not required
 
-
 ## Logging
 
 The bot emits structured JSON-style logs to stdout.
@@ -488,7 +471,6 @@ Known secret values are redacted from logs:
 - `TELEGRAM_BOT_TOKEN`
 - `DOPRAX_API_KEY`
 
-
 ## Security
 
 - Never commit `.env`
@@ -500,7 +482,6 @@ Known secret values are redacted from logs:
 - Prefer Docker secrets or server-side environment variables in production
 
 See [`SECURITY.md`](SECURITY.md) for additional security guidance.
-
 
 ## Troubleshooting
 
@@ -585,7 +566,6 @@ Check:
 - Network connectivity
 - Doprax API availability
 
-
 ## Roadmap
 
 Potential improvements:
@@ -599,7 +579,6 @@ Potential improvements:
 - Structured JSON logger adapter
 - Optional PostgreSQL storage backend
 - Integration tests against a staging Doprax API
-
 
 ## Contributing
 
@@ -621,7 +600,6 @@ python -m pytest -q -vv --maxfail=1 --disable-warnings
 
 For larger changes, please open an issue first to discuss the design.
 
-
 ## Maintainer
 
 Maintained by **Matin Shahabadi**.
@@ -630,9 +608,38 @@ Maintained by **Matin Shahabadi**.
 - Email: [`me@matinshahabadi.ir`](mailto:me@matinshahabadi.ir)
 - GitHub: [`@power0matin`](https://github.com/power0matin)
 
-
 ## License
 
 This project is licensed under the **MIT License**.
 
 See [`LICENSE`](LICENSE) for details.
+
+## Contact
+
+**Matin Shahabadi**
+
+- Website: [matinshahabadi.ir](https://matinshahabadi.ir)
+- Email: [me@matinshahabadi.ir](mailto:me@matinshahabadi.ir)
+- GitHub: [power0matin](https://github.com/power0matin)
+- LinkedIn: [matin-shahabadi](https://www.linkedin.com/in/matin-shahabadi)
+
+<p align="center">
+  <b>If this helped you, consider giving it a star!</b><br>
+  <sub>Your support keeps the project alive and helps others find it.</sub>
+</p>
+
+<!-- Copy-paste in your Readme.md file -->
+<p align="center">
+  <a href="https://next.ossinsight.io/widgets/official/analyze-repo-stars-history?repo_id=1155204505" target="_blank" style="display: block" align="center">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://next.ossinsight.io/widgets/official/analyze-repo-stars-history/thumbnail.png?repo_id=1155204505&amp;image_size=auto&amp;color_scheme=dark" width="721" height="auto">
+      <img alt="Star History of power0matin/Doprax-Telegram-Bot" src="https://next.ossinsight.io/widgets/official/analyze-repo-stars-history/thumbnail.png?repo_id=1155204505&amp;image_size=auto&amp;color_scheme=light" width="721" height="auto">
+    </picture>
+  </a>
+</p>
+
+<!-- Made with [OSS Insight](https://ossinsight.io/) -->
+
+<p align="center">
+  Created by <a href="https://github.com/power0matin">power0matin</a>
+</p>
